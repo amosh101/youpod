@@ -1,0 +1,13 @@
+{
+  "name": "youpod",
+  "version": "1.0.0",
+  "description": "A modular, static YouTube player styled as a 3D iPod.",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": ">=18"
+  },
+  "scripts": {
+    "test": "node --test"
+  }
+}
