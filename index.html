@@ -1,0 +1,553 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,user-scalable=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="YouPod">
+<meta name="theme-color" content="#1b1f25">
+<title>YouPod</title>
+<style>
+  :root{
+    --bg-hi:#4b5661; --bg-lo:#171a1f;
+    --lcd:#f6f8fb; --ink:#12161b; --mute:#66707c; --line:#9ba5b0;
+    --hdr-a:#fdfdfe; --hdr-b:#d3d9e1;
+    --sel-a:#62b3f7; --sel-b:#2370c6;
+  }
+  *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+  html,body{margin:0;height:100%;overflow:hidden;overscroll-behavior:none;background:var(--bg-lo)}
+  body{
+    background:radial-gradient(120% 90% at 50% 30%,var(--bg-hi),var(--bg-lo));
+    font-family:-apple-system,BlinkMacSystemFont,"Helvetica Neue",Helvetica,Arial,sans-serif;
+    -webkit-user-select:none;user-select:none;-webkit-touch-callout:none;
+  }
+  #gl{position:fixed;inset:0;width:100%;height:100%;display:block;touch-action:none}
+
+  /* The LCD is laid out at 320x240 and scaled onto the 3D screen opening. */
+  #lcd{
+    position:fixed;left:0;top:0;width:320px;height:240px;transform-origin:0 0;
+    overflow:hidden;background:var(--lcd);color:var(--ink);border-radius:5px;
+    font-size:14px;line-height:1.2;
+  }
+  #lcd::after{
+    content:"";position:absolute;inset:0;pointer-events:none;z-index:20;
+    background:linear-gradient(125deg,rgba(255,255,255,.22) 0,rgba(255,255,255,0) 38%);
+  }
+  .hdr{
+    position:absolute;left:0;right:0;top:0;height:24px;display:flex;align-items:center;
+    justify-content:space-between;padding:0 8px;z-index:3;
+    background:linear-gradient(var(--hdr-a),var(--hdr-b));border-bottom:1px solid var(--line);
+  }
+  .ttl{font-weight:700;font-size:13px;position:absolute;left:50px;right:50px;text-align:center;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .ind{width:16px;height:12px;display:flex;align-items:center}
+  .ind svg{width:11px;height:11px;fill:#2370c6}
+  .batt{width:22px;height:10px;border:1px solid #5d6772;border-radius:2px;padding:1px;position:relative}
+  .batt::after{content:"";position:absolute;right:-3px;top:2px;width:2px;height:4px;background:#5d6772;border-radius:0 1px 1px 0}
+  .batt i{display:block;height:100%;width:78%;background:linear-gradient(#7fd36a,#3f9b2e);border-radius:1px}
+
+  .list{position:absolute;left:0;right:0;top:25px;bottom:0}
+  .row{
+    height:24px;display:flex;align-items:center;justify-content:space-between;gap:8px;
+    padding:0 12px 0 10px;font-weight:500;font-size:14.5px;border-bottom:1px solid #e6eaef;cursor:pointer;
+  }
+  .row span:first-child{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0}
+  .row.sel{background:linear-gradient(var(--sel-a),var(--sel-b));color:#fff;border-bottom-color:#1d5fae}
+  .row .r{font-size:18px;line-height:1;opacity:.75;flex:none}
+  .row .r svg{width:10px;height:10px;fill:currentColor;display:block}
+  .row.plain{cursor:default;font-weight:400;font-size:13px;color:var(--ink)}
+  .scroll{position:absolute;right:2px;width:4px;border-radius:2px;background:rgba(40,60,90,.35)}
+
+  .vid{position:absolute;left:40px;top:29px;width:240px;height:135px;background:#000;border-radius:2px;overflow:hidden;pointer-events:none;opacity:0;z-index:1}
+  .vid.on{opacity:1}
+  .vid iframe{width:100%;height:100%;border:0;display:block}
+  .vnote{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;text-align:center;padding:14px;color:#c9d1da;font-size:12px;z-index:2;pointer-events:none}
+  .vnote[hidden]{display:none}
+
+  .np{position:absolute;left:0;right:0;top:169px;padding:0 16px;text-align:center}
+  .np[hidden]{display:none}
+  .t1{font-weight:700;font-size:14px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .t2{font-size:12px;color:var(--mute);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;height:15px}
+  .bar{margin-top:6px;height:9px;border:1px solid var(--line);border-radius:5px;background:#e4e9ef;overflow:hidden;box-shadow:inset 0 1px 2px rgba(0,0,0,.18)}
+  .bar b{display:block;height:100%;width:0;background:linear-gradient(var(--sel-a),var(--sel-b))}
+  .times{display:flex;justify-content:space-between;margin-top:3px;font-size:11px;color:var(--mute);font-variant-numeric:tabular-nums}
+
+  .add{position:absolute;left:0;right:0;top:25px;bottom:0;padding:18px 18px 0;text-align:center}
+  .add[hidden]{display:none}
+  .add p{margin:0 0 10px;font-size:13px;color:var(--mute)}
+  .add input{
+    width:100%;height:32px;border:1px solid var(--line);border-radius:6px;padding:0 8px;font:inherit;font-size:14px;
+    background:#fff;color:var(--ink);box-shadow:inset 0 1px 2px rgba(0,0,0,.15);-webkit-user-select:text;user-select:text;outline:none
+  }
+  .add input:focus{border-color:var(--sel-b);box-shadow:0 0 0 2px rgba(35,112,198,.35)}
+  .add .msg{margin-top:10px;font-size:13px;font-weight:600;min-height:16px}
+  .add .tip{margin-top:6px;font-size:11px;color:var(--mute)}
+
+  .vol{position:absolute;left:50px;right:50px;bottom:10px;height:24px;border-radius:12px;background:rgba(20,26,34,.88);display:flex;align-items:center;gap:8px;padding:0 10px;z-index:10;color:#fff;font-size:11px}
+  .vol[hidden]{display:none}
+  .vol .tr{flex:1;height:6px;border-radius:3px;background:rgba(255,255,255,.28);overflow:hidden}
+  .vol .tr b{display:block;height:100%;background:#fff;width:50%}
+</style>
+</head>
+<body>
+<canvas id="gl"></canvas>
+
+<div id="lcd">
+  <div class="hdr">
+    <span class="ind" id="ind"></span>
+    <span class="ttl" id="ttl">YouPod</span>
+    <span class="batt"><i></i></span>
+  </div>
+  <div class="list" id="list"></div>
+  <div class="vid" id="vid"><div id="yt"></div><div class="vnote" id="vnote" hidden></div></div>
+  <div class="np" id="np" hidden>
+    <div class="t1" id="t1">Not Playing</div>
+    <div class="t2" id="t2"></div>
+    <div class="bar"><b id="fill"></b></div>
+    <div class="times"><span id="tEl">0:00</span><span id="tRem">-0:00</span></div>
+  </div>
+  <div class="add" id="add" hidden>
+    <p>Paste a YouTube link</p>
+    <input id="url" type="url" inputmode="url" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="youtube.com/watch?v=...">
+    <div class="msg" id="msg"></div>
+    <div class="tip">Press the center button to paste and add</div>
+  </div>
+  <div class="vol" id="vol" hidden><span>Vol</span><div class="tr"><b id="volFill"></b></div></div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script>
+(function(){
+'use strict';
+const $ = id => document.getElementById(id);
+
+/* ---------- storage ---------- */
+const store = {
+  get(k,d){ try{ const v=localStorage.getItem(k); return v?JSON.parse(v):d; }catch(e){ return d; } },
+  set(k,v){ try{ localStorage.setItem(k,JSON.stringify(v)); }catch(e){} }
+};
+
+/* ---------- queue + playback state ---------- */
+let queue = store.get('youpod.queue', null) || [
+  {id:'dQw4w9WgXcQ', title:'Never Gonna Give You Up', author:'Rick Astley'},
+  {id:'jNQXAC9IVRM', title:'Me at the zoo', author:'jawed'},
+  {id:'9bZkp7q19f0', title:'Gangnam Style', author:'PSY'}
+];
+let cur = -1, state = -1, vol = store.get('youpod.vol', 80);
+let player = null, ready = false, pendingId = null, apiFailed = false, embedError = false;
+const saveQueue = () => store.set('youpod.queue', queue);
+
+/* ---------- screens ---------- */
+const ICON_PLAY  = '<svg viewBox="0 0 10 10"><path d="M1 0.5L9.5 5L1 9.5z"/></svg>';
+const ICON_PAUSE = '<svg viewBox="0 0 10 10"><path d="M1.5 0.5h2.6v9H1.5zM5.9 0.5h2.6v9H5.9z"/></svg>';
+const CHEV = '<svg viewBox="0 0 10 10"><path d="M2.5 0.5L7.5 5L2.5 9.5L1.5 8.5L5.5 5L1.5 1.5z"/></svg>';
+
+const npScreen    = {kind:'np',  title:'Now Playing'};
+const addScreen   = {kind:'add', title:'Add Video'};
+const aboutScreen = {kind:'text',title:'About', build:()=>[
+  'Wheel: scroll lists, or volume',
+  'Center: select / play / pause',
+  'Top: Menu (back)',
+  'Left / right: previous / next',
+  'Bottom: play / pause',
+  'Videos play through the official',
+  'YouTube player. Titles come from',
+  'YouTube once a video loads.'
+].map(t=>({l:t,plain:true}))};
+const queueScreen = {kind:'menu', title:'Queue', sel:0, top:0, build:()=>{
+  const items = queue.map((v,i)=>({l:v.title, now:i===cur, go:()=>playIndex(i)}));
+  items.push({l:'Add Video', chev:true, go:()=>push(addScreen)});
+  if(queue.length) items.push({l:'Clear Queue', go:()=>{ queue=[]; cur=-1; saveQueue(); if(ready) try{player.stopVideo();}catch(e){} render(); }});
+  return items;
+}};
+const mainScreen  = {kind:'menu', title:'YouPod', sel:0, top:0, build:()=>[
+  {l:'Now Playing', go:()=>push(npScreen)},
+  {l:'Queue', chev:true, go:()=>push(queueScreen)},
+  {l:'Add Video', chev:true, go:()=>push(addScreen)},
+  {l:'Shuffle All', go:shuffle},
+  {l:'About', chev:true, go:()=>push(aboutScreen)}
+]};
+const stack = [mainScreen];
+let screen = mainScreen;
+
+function push(s){ if(screen===s) return; stack.push(s); screen=s; render(); }
+function pop(){ if(stack.length>1){ stack.pop(); screen=stack[stack.length-1]; render(); } }
+function openNP(){ if(screen!==npScreen) push(npScreen); else render(); }
+
+const listEl = $('list');
+const VISIBLE = 9;
+
+function render(){
+  const k = screen.kind;
+  $('ttl').textContent = screen.title;
+  listEl.hidden = !(k==='menu'||k==='text');
+  $('np').hidden = k!=='np';
+  $('add').hidden = k!=='add';
+  $('vid').classList.toggle('on', k==='np');
+  if(k==='menu'||k==='text') renderList();
+  if(k==='np') updateNP();
+  if(k==='add'){ $('msg').textContent=''; }
+  updateIndicator();
+}
+
+function renderList(){
+  const items = screen.build();
+  if(screen.kind==='menu'){
+    screen.sel = Math.max(0, Math.min(items.length-1, screen.sel||0));
+    if(screen.sel < screen.top) screen.top = screen.sel;
+    if(screen.sel >= screen.top+VISIBLE) screen.top = screen.sel-VISIBLE+1;
+  } else { screen.top = 0; screen.sel = -1; }
+  listEl.textContent = '';
+  const slice = items.slice(screen.top, screen.top+VISIBLE);
+  slice.forEach((it,n)=>{
+    const i = screen.top+n;
+    const row = document.createElement('div');
+    row.className = 'row' + (i===screen.sel?' sel':'') + (it.plain?' plain':'');
+    const a = document.createElement('span'); a.textContent = it.l; row.appendChild(a);
+    if(it.chev || it.now){
+      const r = document.createElement('span'); r.className='r';
+      r.innerHTML = it.now ? (state===1?ICON_PLAY:ICON_PAUSE) : CHEV; row.appendChild(r);
+    }
+    if(!it.plain) row.addEventListener('click',()=>{ screen.sel=i; renderList(); click(1); it.go(); });
+    listEl.appendChild(row);
+  });
+  if(items.length>VISIBLE){
+    const trackH = 24*VISIBLE, h = Math.max(18, trackH*VISIBLE/items.length);
+    const t = (trackH-h)*(screen.top/(items.length-VISIBLE));
+    const s = document.createElement('div'); s.className='scroll'; s.style.height=h+'px'; s.style.top=(t)+'px';
+    listEl.appendChild(s);
+  }
+}
+
+function updateIndicator(){
+  $('ind').innerHTML = cur>=0 ? (state===1?ICON_PLAY:(state===2?ICON_PAUSE:'')) : '';
+}
+
+function updateNP(){
+  const v = queue[cur];
+  $('t1').textContent = v ? v.title : 'Not Playing';
+  $('t2').textContent = v ? v.author : '';
+  const n = $('vnote');
+  let msg = '';
+  if(apiFailed) msg = 'The YouTube player could not load. Check your connection, and open this page from a web address rather than inside a preview.';
+  else if(embedError) msg = 'The owner of this video does not allow it to play here. Press the right side of the wheel for the next one.';
+  else if(cur<0) msg = 'Pick a video from Queue, or press the bottom of the wheel to play.';
+  n.textContent = msg; n.hidden = !msg;
+}
+
+/* ---------- YouTube player ---------- */
+function loadAPI(){
+  const s = document.createElement('script');
+  s.src = 'https://www.youtube.com/iframe_api';
+  s.onerror = ()=>{ apiFailed = true; if(screen===npScreen) updateNP(); };
+  document.head.appendChild(s);
+  setTimeout(()=>{ if(!window.YT || !window.YT.Player){ apiFailed = true; if(screen===npScreen) updateNP(); } }, 8000);
+}
+window.onYouTubeIframeAPIReady = function(){
+  const vars = {controls:0,disablekb:1,playsinline:1,rel:0,modestbranding:1,iv_load_policy:3,fs:0};
+  if(/^https?:$/.test(location.protocol)) vars.origin = location.origin;
+  player = new YT.Player('yt',{width:'100%',height:'100%',playerVars:vars,events:{
+    onReady(){
+      ready = true; apiFailed = false;
+      try{ player.setVolume(vol); }catch(e){}
+      if(pendingId){ player.loadVideoById(pendingId); pendingId=null; }
+      if(screen===npScreen) updateNP();
+    },
+    onStateChange(e){
+      state = e.data;
+      if(state===1||state===5){ embedError=false; syncMeta(); }
+      if(state===0) next();
+      updateIndicator(); if(screen===queueScreen) renderList(); if(screen===npScreen) updateNP();
+    },
+    onError(){ embedError = true; state = -1; updateIndicator(); if(screen===npScreen) updateNP(); }
+  }});
+};
+
+function syncMeta(){
+  try{
+    const d = player.getVideoData(), v = queue[cur];
+    if(d && v && d.video_id===v.id && d.title && (d.title!==v.title || d.author!==v.author)){
+      v.title = d.title; v.author = d.author || v.author; saveQueue();
+      if(screen===npScreen) updateNP();
+    }
+  }catch(e){}
+}
+
+function playIndex(i){
+  if(!queue.length) return;
+  cur = ((i%queue.length)+queue.length)%queue.length;
+  embedError = false;
+  const id = queue[cur].id;
+  if(ready){ try{ player.loadVideoById(id); }catch(e){} } else pendingId = id;
+  openNP();
+}
+function togglePlay(){
+  if(cur<0){ if(queue.length) playIndex(0); return; }
+  if(!ready) return;
+  try{ state===1 ? player.pauseVideo() : player.playVideo(); }catch(e){}
+}
+function next(){ if(queue.length) playIndex(cur<0?0:cur+1); }
+function prev(){
+  if(!queue.length) return;
+  let t = 0; try{ t = ready ? player.getCurrentTime() : 0; }catch(e){}
+  if(t>3 && ready){ try{ player.seekTo(0,true); }catch(e){} } else playIndex(cur<0?0:cur-1);
+}
+function shuffle(){ if(queue.length) playIndex(Math.floor(Math.random()*queue.length)); }
+
+setInterval(()=>{
+  if(!ready || cur<0 || screen!==npScreen) return;
+  try{
+    const d = player.getDuration()||0, t = player.getCurrentTime()||0;
+    $('fill').style.width = d? Math.min(100,t/d*100)+'%' : '0%';
+    $('tEl').textContent = fmt(t);
+    $('tRem').textContent = '-'+fmt(Math.max(0,d-t));
+  }catch(e){}
+},400);
+const fmt = s => { s=Math.floor(s); return Math.floor(s/60)+':'+String(s%60).padStart(2,'0'); };
+
+/* ---------- add video ---------- */
+function parseId(str){
+  str = (str||'').trim();
+  const m = str.match(/(?:youtu\.be\/|[?&]v=|\/embed\/|\/shorts\/|\/live\/)([\w-]{11})/) || str.match(/^([\w-]{11})$/);
+  return m ? m[1] : null;
+}
+function submitAdd(){
+  const input = $('url'), msg = $('msg');
+  const id = parseId(input.value);
+  if(!id){ msg.style.color='#c0392b'; msg.textContent='That is not a YouTube link.'; return; }
+  queue.push({id, title:'YouTube video '+id, author:''}); saveQueue();
+  msg.style.color='#2a8a3c'; msg.textContent='Added to queue.';
+  input.value=''; input.blur();
+  const n = queue.length-1;
+  setTimeout(()=>{ pop(); queueScreen.sel = n; playIndex(n); }, 500);
+}
+
+/* ---------- wheel actions ---------- */
+let volTimer = null;
+function showVol(){
+  $('vol').hidden=false; $('volFill').style.width=vol+'%';
+  clearTimeout(volTimer); volTimer=setTimeout(()=>{ $('vol').hidden=true; },1200);
+}
+function move(dir){
+  if(screen.kind==='menu'){ screen.sel += dir; renderList(); }
+  else if(screen.kind==='np'){
+    vol = Math.max(0,Math.min(100,vol+dir*4)); store.set('youpod.vol',vol);
+    if(ready) try{ player.setVolume(vol); }catch(e){}
+    showVol();
+  }
+}
+function select(){
+  if(screen.kind==='menu'){
+    const items = screen.build(); const it = items[screen.sel]; if(it&&it.go) it.go();
+  } else if(screen.kind==='np'){ togglePlay(); }
+  else if(screen.kind==='add'){
+    const input = $('url');
+    if(input.value.trim()) submitAdd();
+    else if(navigator.clipboard && navigator.clipboard.readText){
+      navigator.clipboard.readText().then(t=>{ input.value=t; submitAdd(); }).catch(()=>input.focus());
+    } else input.focus();
+  }
+}
+$('url').addEventListener('keydown',e=>{ if(e.key==='Enter'){ e.preventDefault(); submitAdd(); } });
+
+/* ---------- click sound ---------- */
+let ac = null;
+function initAudio(){
+  if(!ac){ try{ ac = new (window.AudioContext||window.webkitAudioContext)(); }catch(e){} }
+  if(ac && ac.state==='suspended') ac.resume();
+}
+function click(v){
+  if(!ac) return;
+  const n = (ac.sampleRate*0.012)|0, b = ac.createBuffer(1,n,ac.sampleRate), d = b.getChannelData(0);
+  for(let i=0;i<n;i++) d[i] = (Math.random()*2-1)*Math.pow(1-i/n,3);
+  const s = ac.createBufferSource(); s.buffer=b;
+  const f = ac.createBiquadFilter(); f.type='bandpass'; f.frequency.value=2800;
+  const g = ac.createGain(); g.gain.value=0.22*(v||1);
+  s.connect(f); f.connect(g); g.connect(ac.destination); s.start();
+}
+
+/* ---------- three.js scene ---------- */
+const BW=6.18, BH=10.35, BR=0.55, BEV=0.14, DEPTH=0.5;
+const FRONT = DEPTH/2 + BEV;                 // z of the front face
+const BZ_W=5.0, BZ_H=4.0, BZ_Y=2.45;         // black bezel
+const LW=4.5, LH=3.375, LY=BZ_Y;             // LCD opening (4:3)
+const WR=1.9, WY=-2.75, CR=0.76;             // wheel radius / center y / center button radius
+
+const renderer = new THREE.WebGLRenderer({canvas:$('gl'),antialias:true,alpha:true});
+renderer.setPixelRatio(Math.min(window.devicePixelRatio||1,2));
+renderer.outputEncoding = THREE.sRGBEncoding;
+const scene = new THREE.Scene();
+const camera = new THREE.PerspectiveCamera(22,1,0.1,100);
+
+function makeEnv(){
+  const c=document.createElement('canvas'); c.width=512; c.height=256; const g=c.getContext('2d');
+  const gr=g.createLinearGradient(0,0,0,256);
+  gr.addColorStop(0,'#ffffff'); gr.addColorStop(.48,'#b9c1ca'); gr.addColorStop(.52,'#444b54'); gr.addColorStop(1,'#14171b');
+  g.fillStyle=gr; g.fillRect(0,0,512,256);
+  const sb=g.createLinearGradient(0,50,0,210); sb.addColorStop(0,'#ffffff'); sb.addColorStop(1,'#cfd5dc');
+  g.fillStyle=sb; g.fillRect(290,50,190,160);       // big softbox where the front face reflects
+  g.fillStyle='#fff'; g.fillRect(60,40,90,60);
+  const t=new THREE.CanvasTexture(c); t.mapping=THREE.EquirectangularReflectionMapping; t.encoding=THREE.sRGBEncoding; return t;
+}
+scene.environment = makeEnv();
+const key = new THREE.DirectionalLight(0xffffff,0.8); key.position.set(-3,6,9); scene.add(key);
+scene.add(new THREE.HemisphereLight(0xffffff,0x778088,0.45));
+
+function rrShape(w,h,r){
+  const s=new THREE.Shape(), x=-w/2, y=-h/2;
+  s.moveTo(x+r,y); s.lineTo(x+w-r,y); s.absarc(x+w-r,y+r,r,-Math.PI/2,0);
+  s.lineTo(x+w,y+h-r); s.absarc(x+w-r,y+h-r,r,0,Math.PI/2);
+  s.lineTo(x+r,y+h); s.absarc(x+r,y+h-r,r,Math.PI/2,Math.PI);
+  s.lineTo(x,y+r); s.absarc(x+r,y+r,r,Math.PI,Math.PI*1.5);
+  return s;
+}
+
+/* soft shadow behind the body */
+(function(){
+  const c=document.createElement('canvas'); c.width=460; c.height=670; const g=c.getContext('2d');
+  g.shadowColor='rgba(0,0,0,.75)'; g.shadowBlur=46; g.fillStyle='#000';
+  const w=309,h=517,x=(460-w)/2,y=(670-h)/2,r=26;
+  g.beginPath(); g.moveTo(x+r,y); g.arcTo(x+w,y,x+w,y+h,r); g.arcTo(x+w,y+h,x,y+h,r); g.arcTo(x,y+h,x,y,r); g.arcTo(x,y,x+w,y,r); g.closePath(); g.fill();
+  const t=new THREE.CanvasTexture(c); t.encoding=THREE.sRGBEncoding;
+  const m=new THREE.Mesh(new THREE.PlaneGeometry(9.2,13.4),new THREE.MeshBasicMaterial({map:t,transparent:true,depthWrite:false}));
+  m.position.set(0,-0.35,-0.5); scene.add(m);
+})();
+
+/* body */
+const bodyGeo = new THREE.ExtrudeGeometry(rrShape(BW-2*BEV,BH-2*BEV,BR-BEV),{depth:DEPTH,bevelEnabled:true,bevelThickness:BEV,bevelSize:BEV,bevelSegments:8,curveSegments:40});
+bodyGeo.translate(0,0,-DEPTH/2);
+const body = new THREE.Mesh(bodyGeo,new THREE.MeshStandardMaterial({color:0xf2f2ef,roughness:0.28,metalness:0,envMapIntensity:0.9}));
+scene.add(body);
+
+/* black bezel */
+const bezel = new THREE.Mesh(new THREE.ExtrudeGeometry(rrShape(BZ_W,BZ_H,0.24),{depth:0.04,bevelEnabled:false,curveSegments:24}),
+  new THREE.MeshStandardMaterial({color:0x060607,roughness:0.14,metalness:0,envMapIntensity:0.7}));
+bezel.position.set(0,BZ_Y,FRONT); scene.add(bezel);
+
+/* click wheel */
+const wheel = new THREE.Group(); wheel.position.set(0,WY,FRONT); scene.add(wheel);
+const wheelBase = new THREE.Mesh(new THREE.CylinderGeometry(WR,WR,0.05,128).rotateX(Math.PI/2).translate(0,0,0.025),
+  new THREE.MeshStandardMaterial({color:0xe9e9e6,roughness:0.5,metalness:0,envMapIntensity:0.6}));
+wheel.add(wheelBase);
+const groove = new THREE.Mesh(new THREE.RingGeometry(WR+0.005,WR+0.05,128),new THREE.MeshBasicMaterial({color:0xb9bbbe}));
+groove.position.z=0.003; wheel.add(groove);
+
+function wheelDecal(){
+  const S=1024,c=document.createElement('canvas'); c.width=c.height=S; const g=c.getContext('2d');
+  const col='#9a9ca1'; g.fillStyle=col; g.textAlign='center'; g.textBaseline='middle';
+  g.font='700 64px "Helvetica Neue",Helvetica,Arial,sans-serif';
+  if('letterSpacing' in g) g.letterSpacing='6px';
+  g.fillText('MENU',S/2,S*0.16);
+  const tri=(x,y,s,dir)=>{ g.beginPath(); g.moveTo(x+dir*s,y); g.lineTo(x-dir*s*0.8,y-s); g.lineTo(x-dir*s*0.8,y+s); g.closePath(); g.fill(); };
+  const a=S*0.10;
+  tri(a,S/2,36,-1); tri(a+64,S/2,36,-1);
+  tri(S-a,S/2,36,1); tri(S-a-64,S/2,36,1);
+  tri(S/2-40,S*0.84,34,1);
+  g.fillRect(S/2+8,S*0.84-31,15,62); g.fillRect(S/2+34,S*0.84-31,15,62);
+  const t=new THREE.CanvasTexture(c); t.encoding=THREE.sRGBEncoding; t.anisotropy=4; return t;
+}
+const decal = new THREE.Mesh(new THREE.CircleGeometry(WR,96),new THREE.MeshBasicMaterial({map:wheelDecal(),transparent:true}));
+decal.position.z=0.052; wheel.add(decal);
+
+const centerGroup = new THREE.Group(); centerGroup.position.z=0.05; wheel.add(centerGroup);
+const centerBtn = new THREE.Mesh(new THREE.CylinderGeometry(CR,CR,0.05,96).rotateX(Math.PI/2).translate(0,0,0.025),
+  new THREE.MeshStandardMaterial({color:0xdededa,roughness:0.35,metalness:0,envMapIntensity:0.8}));
+centerGroup.add(centerBtn);
+const ring = new THREE.Mesh(new THREE.RingGeometry(CR,CR+0.045,96),new THREE.MeshBasicMaterial({color:0xaeb0b3}));
+ring.position.z=0.003; wheel.add(ring); ring.position.z=0.053;
+
+/* press feedback (smoothed) */
+const tgt={rx:0,ry:0,cz:0}, now={rx:0,ry:0,cz:0};
+let dirty=true;
+function frame(){
+  let moving=false;
+  for(const k in tgt){ const d=tgt[k]-now[k]; if(Math.abs(d)>0.0004){ now[k]+=d*0.35; moving=true; } else now[k]=tgt[k]; }
+  wheel.rotation.x=now.rx; wheel.rotation.y=now.ry; centerGroup.position.z=0.05+now.cz;
+  if(moving||dirty){ renderer.render(scene,camera); dirty=false; }
+  requestAnimationFrame(frame);
+}
+
+/* ---------- layout: fit the iPod and pin the LCD to the screen opening ---------- */
+let wheelPx={x:0,y:0,r:1};
+function layout(){
+  const w=window.innerWidth, h=window.innerHeight;
+  renderer.setSize(w,h,false);
+  camera.aspect=w/h;
+  const t=Math.tan(THREE.MathUtils.degToRad(camera.fov/2));
+  const d=Math.max((BH*1.04/2)/t,(BW*1.07/2)/(t*camera.aspect))+FRONT;
+  camera.position.set(0,0,d); camera.updateProjectionMatrix(); camera.updateMatrixWorld();
+  const P=(x,y,z)=>{ const v=new THREE.Vector3(x,y,z).project(camera); return {x:(v.x*.5+.5)*w,y:(-v.y*.5+.5)*h}; };
+  const z=FRONT+0.04;
+  const a=P(-LW/2,LY+LH/2,z), b=P(LW/2,LY-LH/2,z), s=(b.x-a.x)/320;
+  $('lcd').style.transform='translate('+a.x+'px,'+a.y+'px) scale('+s+')';
+  const c0=P(0,WY,FRONT+0.05), c1=P(WR,WY,FRONT+0.05);
+  wheelPx={x:c0.x,y:c0.y,r:c1.x-c0.x};
+  dirty=true;
+}
+window.addEventListener('resize',layout);
+window.addEventListener('orientationchange',()=>setTimeout(layout,200));
+
+/* ---------- wheel input ---------- */
+const cv=$('gl'), STEP=0.38;
+let drag=null;
+function press(dx,dy,center){
+  const R=wheelPx.r;
+  if(center){ tgt.cz=-0.03; tgt.rx=0; tgt.ry=0; }
+  else { tgt.cz=0; tgt.rx=dy/R*0.05; tgt.ry=dx/R*0.05; }
+}
+function release(){ tgt.cz=0; tgt.rx=0; tgt.ry=0; }
+function tick(dir){ click(1); if(navigator.vibrate) try{ navigator.vibrate(3); }catch(e){} move(dir); }
+
+cv.addEventListener('pointerdown',e=>{
+  const dx=e.clientX-wheelPx.x, dy=e.clientY-wheelPx.y, rr=Math.hypot(dx,dy);
+  if(rr>wheelPx.r*1.02) return;
+  e.preventDefault(); initAudio();
+  try{ cv.setPointerCapture(e.pointerId); }catch(_){}
+  drag={id:e.pointerId,sx:e.clientX,sy:e.clientY,ang:Math.atan2(dy,dx),acc:0,total:0,center:rr<wheelPx.r*0.4,sdx:dx,sdy:dy,dist:0};
+  press(dx,dy,drag.center);
+});
+cv.addEventListener('pointermove',e=>{
+  if(!drag||e.pointerId!==drag.id) return;
+  const dx=e.clientX-wheelPx.x, dy=e.clientY-wheelPx.y;
+  drag.dist=Math.max(drag.dist,Math.hypot(e.clientX-drag.sx,e.clientY-drag.sy));
+  if(drag.center) return;
+  const ang=Math.atan2(dy,dx); let da=ang-drag.ang;
+  if(da>Math.PI) da-=2*Math.PI; if(da<-Math.PI) da+=2*Math.PI;
+  drag.ang=ang; drag.total+=Math.abs(da); drag.acc+=da;
+  while(drag.acc>STEP){ drag.acc-=STEP; tick(1); }
+  while(drag.acc<-STEP){ drag.acc+=STEP; tick(-1); }
+});
+function end(e,cancel){
+  if(!drag||e.pointerId!==drag.id) return;
+  const d=drag; drag=null; release();
+  if(cancel) return;
+  if(d.total<0.3 && d.dist<14){
+    click(1.2); if(navigator.vibrate) try{ navigator.vibrate(6); }catch(_){}
+    if(d.center){ select(); return; }
+    const deg=Math.atan2(d.sdy,d.sdx)*180/Math.PI;
+    if(deg>-135&&deg<=-45) pop();
+    else if(deg>-45&&deg<=45) next();
+    else if(deg>45&&deg<=135) togglePlay();
+    else prev();
+  }
+}
+cv.addEventListener('pointerup',e=>end(e,false));
+cv.addEventListener('pointercancel',e=>end(e,true));
+cv.addEventListener('contextmenu',e=>e.preventDefault());
+
+/* keyboard, for desktop */
+window.addEventListener('keydown',e=>{
+  if(e.target&&e.target.tagName==='INPUT') return;
+  initAudio();
+  if(e.key==='ArrowDown') tick(1); else if(e.key==='ArrowUp') tick(-1);
+  else if(e.key==='Enter') select(); else if(e.key==='Escape'||e.key==='Backspace') pop();
+  else if(e.key==='ArrowRight') next(); else if(e.key==='ArrowLeft') prev(); else if(e.key===' '){ e.preventDefault(); togglePlay(); }
+});
+
+/* ---------- go ---------- */
+layout(); render(); frame(); loadAPI();
+})();
+</script>
+</body>
+</html>
