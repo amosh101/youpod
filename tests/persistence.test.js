@@ -26,7 +26,7 @@ test('new installs receive the current default queue', () => {
 test('the exact legacy sample queue migrates to the current defaults', () => {
   const result = resolveInitialQueue(legacyQueue);
   assert.equal(result.migrated, true);
-  assert.deepEqual(result.queue.map(video => video.id), ['JyDM9RB3Tec', 'Fofi08x84dA']);
+  assert.deepEqual(result.queue.map(video => video.id), ['9ofUM-_3uQ4', 'xxFjwI1qYmc', 'h5u4dKq8C2w', 'I-5e_J3LWS8', 'g9Yo1sLnbjo']);
 });
 
 test('custom and intentionally empty queues are preserved', () => {
@@ -38,8 +38,8 @@ test('custom and intentionally empty queues are preserved', () => {
 test('loading a legacy queue persists the migrated defaults', () => {
   const storage = createMemoryStorage({ 'youpod.queue': JSON.stringify(legacyQueue) });
   const persistence = createPersistence(() => storage);
-  assert.deepEqual(persistence.loadQueue().map(video => video.id), ['JyDM9RB3Tec', 'Fofi08x84dA']);
-  assert.deepEqual(JSON.parse(storage.values.get('youpod.queue')).map(video => video.id), ['JyDM9RB3Tec', 'Fofi08x84dA']);
+  assert.deepEqual(persistence.loadQueue().map(video => video.id), ['9ofUM-_3uQ4', 'xxFjwI1qYmc', 'h5u4dKq8C2w', 'I-5e_J3LWS8', 'g9Yo1sLnbjo']);
+  assert.deepEqual(JSON.parse(storage.values.get('youpod.queue')).map(video => video.id), ['9ofUM-_3uQ4', 'xxFjwI1qYmc', 'h5u4dKq8C2w', 'I-5e_J3LWS8', 'g9Yo1sLnbjo']);
 });
 
 test('volume loading validates and clamps stored values', () => {
